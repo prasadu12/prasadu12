@@ -1,90 +1,21 @@
 pipeline {
-
     agent any
 
-    tools {
-        maven 'Maven 3.3.9'
-        jdk 'JDK 8'
-    }
-
-    options {
-        skipStagesAfterUnstable()
-        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '5')
-    }
-
-    environment {
-        ARTIFACT = readMavenPom().getArtifactId()
-        VERSION = readMavenPom().getVersion()
-        BRANCH = env.BRANCH_NAME.replaceAll("branches/", "")
-    }
-
-    triggers {
-        pollSCM "* * * * *"
-    }
-
     stages {
-
         stage('Build') {
             steps {
-                sh 'mvn clean package -DskipTests'
-                // sh 'mvn rpm:rpm -DreleaseProperty=rpm.release -DskipT ests'
+                echo 'Building..'
             }
         }
-
-       // stage('Static Analysis') {
-          //  steps {
-          //      sh 'mvn sonar:sonar -Dsonar.exclusions=src/main/test/**,src/main/java/toolkit/**'
-            //    sh 'mvn versions:display-dependency-updates -Dhttps.proxyHost=www.mc.xerox.com -Dhttps.proxyPort=8000 -Dhttp.proxyHost=www.mc.xerox.com -Dhttp.proxyPort=8000'
-           // }
-       // }
-
-        stage('Release') {
-            when {
-                branch 'trunk'
-            }
+        stage('Test') {
             steps {
-                sh 'mvn versions:set -DnewVersion=$VERSION-$SVN_REVISION'
-                sh 'mvn deploy -DskipTests'
-                withCredentials([usernameColonPassword(credentialsId: 'yum-snapshot-manager', variable: 'USERNAME_PASSWORD')]) {
-                    sh 'curl -v --fail --user $USERNAME_PASSWORD --upload-file ./target/rpm/wct/RPMS/noarch/*.rpm http://delivery-artifacts.corp.xerox.com/repository/marketingandsales-releases/7/rhel/no.arch/$ARTIFACT-$VERSION-$SVN_REVISION.rhel7.noarch.rpm'
-                }
+                echo 'Testing..'
             }
         }
-
         stage('Deploy') {
-            when {
-                not {
-                    branch 'trunk'
-                }
-            }
             steps {
-                sh 'mvn versions:set -DnewVersion=$VERSION-SNAPSHOT'
-                sh 'mvn deploy -DskipTests'
-                withCredentials([usernameColonPassword(credentialsId: 'yum-snapshot-manager', variable: 'USERNAME_PASSWORD')]) {
-                    sh 'curl -v --fail --user $USERNAME_PASSWORD --upload-file ./target/rpm/wct/RPMS/noarch/*.rpm http://delivery-artifacts.corp.xerox.com/repository/marketingandsales-snapshots/7/rhel/no.arch/$ARTIFACT-$VERSION-$SVN_REVISION.rhel7.noarch.rpm'
-                }
+                echo 'Deploying....'
             }
         }
-
     }
-
-    post {
-        always {
-            deleteDir()
-        }
-
-        success {
-            emailext (
-                subject: "SUCCESSFUL Job: '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: """<p>SUCCESSFUL Job: '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
-                    <p>Check console output at &QUOT;<a href='${env.BUILD_URL}'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>&QUOT;</p>""",
-                to: "USA.MS.Java.Apps.Dev.Team@xerox.com",
-            )
-        }
-
-        failure {
-            emailext (
-                subject: "FAILED Job: '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: """<p>FAILED Job: '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
-                    <p>Check console output at &QUOT;<a href='${env.BUILD_URL}'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>&QUOT;</p>""",
-                to: "USA.MS.Java.Apps.Dev.Team@xerox.com",
+}
